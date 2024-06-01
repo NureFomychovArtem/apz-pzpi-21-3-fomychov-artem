@@ -1,0 +1,184 @@
+Мета роботи 
+
+Набути навичок із розробки програмного забезпечення для «розумних» пристроїв, як частини великих проєктів.
+
+
+1 ОПИС АРХІТЕКТУРИ СИСТЕМИ
+1.1 Опис обраних технологій
+
+Для розробки сканеру відбитку пальців з датчиком температури було обрано технологію Arduino. Для симуляції роботи пристрою було обрано веб-сервіс Wokwi.
+Arduino зазвичай використовується для створення малих, потужних мікроконтролерів, і його можна використовувати для розгортання та запуску вбудованих систем. Операційною системою для Arduino є власне програмне середовище Arduino IDE. 
+Arduino підтримує програмування на різних мовах, включаючи C та C++, що дозволяє створювати кросплатформені проекти – їх можна використовувати на різних операційних системах.
+
+1.2 Структура компонентів
+
+Програмне забезпечення складається з однієї частини, а саме формування даних та відправка їх до серверної частини. Дані формуються у JSON-файл та повертаються до серверної частини. 
+Пристрій сканує відбиток пальця та температуру тіла. Для цього створено методи scanFingerprint() та readTemperature() відповідно. 
+Оскільки проєкт базований на Arduino, то він має два ключових методи. Метод setup(), який виконується при запуску пристрою та встановлює з’єднання з Інтернет мережею. Мeтод loop() виконується постійно, для считування даних та відправки даних до серверної частини проєкту. 
+
+2 ОПИС ІНЖЕНЕРНИХ РІШЕНЬ
+2.1 Формування запитів
+
+Програмне забезпечення для сканування відвідування є повнозначною частиною складної системи. 
+Застосунок самостійно считує дані та відправляє їх до серверу. 
+Серверній частині пристрій надсилає сформовані запити про відвідування. Тіло запиту містить скан відбитку пальця, температуру тіла та час.
+URI серверної частини містить в програмному коді як змінна. Обмін інформацією реалізовано за допомогою HttpClient, який приймає базову адресу сервера:
+1. HTTPClient http;
+2. http.begin(serverUrl.c_str());
+3. http.addHeader("Content-Type", "application/json");
+4.   String json = "{\"fingerprint\":" + fingerprint + "\"time\":" + timeString + ",\"temperature\":" + temperature + "}";
+5. int httpResponseCode = http.POST(json);
+
+2.2 Адміністрування пристрою
+
+Налаштування програмного забезпечення, а саме встановлення даних інтернет мережі та URL серверної частини, відбувається в програмному коді (див. додаток А). 
+
+2.3 Локалізація	
+     
+Програмне забезпечення не виводить інформацію для клієнта, а лише відправляє запит до серверної частини. 
+Час відвідування було локалізовано. А саме для отримання поточного часу використовується метод getLocalTime(). Після чого час конвертується у формат "%Y-%m-%dT%H:%M:%S.000Z" відповідно до типу змінної, яку очікує серверна частина. 
+
+2.4 Обчислення статистики
+     
+Оскільки система не містить дані про попередні відвідування, то ми не можемо сформувати статистику. Для цього є певні методи серверної частини для обрахунку середніх, максимальних та мінімальних показників відвідування. 
+
+3 UML ДІАГРАМИ СИСТЕМИ
+3.1 UML діаграма прецедентів
+
+На рисунку 3.1 зображено діаграму прецедентів для програмного забезпечення «розумного» сканеру відвідування. З пристроєм взаємодіє лише користувач системи, а саме для позначення відвідування закладу. 
+
+3.2 UML діаграма взаємодії
+
+На рисунку 3.2 зображено UML діаграму взаємодії. На ній відображено опис поведінки груп об'єктів, які взаємодіють, на прикладі сканування температури та відбитку пальця та відправки до серверу. 
+
+3.3 UML діаграма активності
+
+На діаграмі активності відображено модель основних послідовностей бізнес-процесів, пов’язаних із програмним забезпеченням «розумного» пристрою в розроблюваній системі. Для зручності розуміння на діаграмі використано «доріжки» для представлення процесів.
+
+3.4 UML діаграма пакетів
+
+UML діаграму пакетів зображено на рисунку 3.3. ІоТ-пристрій має просту систему, яка складається з небагатьох елементів.
+
+ВИСНОВКИ
+      
+У ході виконання лабораторної роботи набули навички розробки програмного забезпечення для IoT пристроїв як частини великої програмної системи.
+Посилання на репозиторій з програмним кодом: https://github.com/NureFomychovArtem/apz-pzpi-21-3-fomychov-artem/tree/main/Task3 
+Посилання на відео з демонстрацією роботи застосунку: https://www.youtube.com/watch?v=ypzmihFr-F0&ab_channel=%D0%90%D1%80%D1%82%D0%B5%D0%BC%D0%A4%D0%BE%D0%BC%D0%B8%D1%87%D0%BE%D0%B2
+
+ДОДАТОК А
+Код програми
+
+1   #include <WiFi.h>
+2   #include <time.h>
+3   #include <HTTPClient.h>
+4   #include <Adafruit_ILI9341.h>
+5   #include <ArduinoJson.h>
+6   
+7   //Значення Wi-Fi-мережі для отримання доступу
+8   #define WIFI_SSID "Wokwi-GUEST"
+9   #define WIFI_PASSWORD ""
+10  #define WIFI_CHANNEL 6
+11  
+12  String serverUrl = "https://localhost:44320/api/Attendance";
+13  DynamicJsonDocument doc(1024);
+14  String fingerprint = "";
+15  
+16  #define tft_cs 15
+17  #define tft_dc 2
+18  #define tft_mosi 23
+19  #define tft_sclk 18
+20  
+21  Adafruit_ILI9341 tft = Adafruit_ILI9341(tft_cs, tft_dc);
+22  
+23  #define WIDTH 320
+24  #define HEIGHT 240
+25  
+26  #define THERMISTOR_PIN 14
+27  float temperature;
+28  
+29  void setup(void) {
+30    Serial.begin(115200);
+31  
+32    // Підключення до мережі Wi-Fi
+33    Serial.print("Connecting to a WiFi network");
+34    WiFi.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL);
+35    while (WiFi.status() != WL_CONNECTED) {
+36      delay(100);
+37      Serial.print(".");
+38    }
+39    Serial.println(" Connected!");
+40    Serial.println("IP: " + WiFi.localIP().toString());
+41  
+42    configTime(0, 0, "pool.ntp.org");
+43    while (!time(nullptr)) {
+44      delay(1000);
+45      Serial.println("Waiting for time synchronization...");
+46    }
+47  
+48    tft.begin();
+49    tft.setRotation(1);
+50  }
+51  
+52  void loop() {
+53    fingerprint = scanFingerprint();
+54    Serial.print("Fingerprint: ");
+55    Serial.println(fingerprint);
+56  
+57    temperature = readTemperature();
+58    Serial.print("Temperature: ");
+59    Serial.println(temperature);
+60  
+61    struct tm timeinfo;
+62    if (!getLocalTime(&timeinfo)) {
+63      Serial.println("Failed to obtain time");
+64    }
+65    const int bufferSize = 50;
+66    char buffer[bufferSize];
+67  
+68    // Форматування часу за допомогою strftime()
+69    strftime(buffer, bufferSize, "%Y-%m-%dT%H:%M:%S.000Z", &timeinfo);
+70  
+71    // Конвертуємо рядок char в String
+72    String timeString = String(buffer);
+73  
+74    Serial.print("Time: ");
+75    Serial.println(timeString);
+76  
+77    HTTPClient http;
+78    http.begin(serverUrl.c_str());
+79    http.addHeader("Content-Type", "application/json");
+80  
+81    String json = "{\"fingerprint\":" + fingerprint + "\"time\":" + timeString + ",\"temperature\":" + temperature + "}";
+82    int httpResponseCode = http.POST(json);
+83    Serial.println(httpResponseCode);
+84  
+85    if (httpResponseCode > 0) {
+86      String response = http.getString();
+87      Serial.println(response);
+88      } else {
+89        Serial.println("Failed to update data");
+90      }
+91  
+92    http.end();
+93    delay(1000);
+94  }
+95  
+96  float readTemperature() {
+97    int rawValue = analogRead(THERMISTOR_PIN);
+98  
+99    float temperature = map(rawValue, 0, 4095, 36.6, 50);
+100 
+101   return temperature;
+102 }
+103 
+104 String scanFingerprint() {
+105   String result = "";
+106   for (int y = 0; y < HEIGHT; y++) {
+107     for (int x = 0; x < WIDTH; x++) {
+108       tft.drawPixel(x, y, x * y);
+109       result += (x + y);
+110     }
+111   }
+112 
+113   return result;
+114 }
